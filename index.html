@@ -6,175 +6,161 @@
     <title>Изучение Турецкого Языка</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
-        .card { transition: transform 0.2s; }
+        /* Стили для карточек и анимации */
+        .card { transition: transform 0.2s; position: relative; }
         .card:hover { transform: translateY(-5px); }
+        
+        /* Стили для кнопки удаления */
+        .delete-btn { 
+            opacity: 0; 
+            transition: opacity 0.3s, color 0.2s; 
+        }
+        .card:hover .delete-btn { 
+            opacity: 1; 
+        }
+        
+        /* Состояния проверки перевода */
         .correct { border-color: #10b981 !important; background-color: #f0fdf4 !important; }
         .wrong { border-color: #f43f5e !important; background-color: #fff1f2 !important; }
-        /* Плавное появление элементов */
-        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
-        .fade-in { animation: fadeIn 0.5s ease-in; }
     </style>
 </head>
-<body class="bg-slate-50 min-h-screen font-sans text-slate-900">
+<body class="bg-slate-50 min-h-screen p-6">
 
-    <div class="max-w-4xl mx-auto p-6">
+    <div class="max-w-4xl mx-auto">
         <header class="text-center mb-10">
             <h1 class="text-4xl font-bold text-indigo-600 mb-2">Günlük Türkçe</h1>
-            <p class="text-slate-500">Ваша ежедневная порция турецких слов и фраз</p>
-            <div id="status-badge" class="mt-4 inline-block px-3 py-1 rounded-full text-xs font-medium bg-slate-200 text-slate-600">
-                Проверка связи с сервером...
-            </div>
+            <div id="status-badge" class="px-3 py-1 rounded-full text-xs inline-block bg-slate-200 text-slate-600 font-medium">Проверка связи...</div>
         </header>
 
-        <!-- Статистика дня -->
-        <div class="grid grid-cols-2 gap-4 mb-8">
-            <div class="bg-white p-4 rounded-xl shadow-sm border border-slate-200">
-                <p class="text-sm text-slate-500">Слов на сегодня</p>
-                <p id="words-count" class="text-2xl font-bold text-indigo-500">0</p>
-            </div>
-            <div class="bg-white p-4 rounded-xl shadow-sm border border-slate-200">
-                <p class="text-sm text-slate-500">Фраз на сегодня</p>
-                <p id="phrases-count" class="text-2xl font-bold text-emerald-500">0</p>
-            </div>
-        </div>
+        <!-- Контейнер для карточек с заданиями -->
+        <div id="learning-app" class="grid grid-cols-1 md:grid-cols-2 gap-6"></div>
 
-        <!-- Контейнер для заданий -->
-        <div id="learning-app" class="space-y-6">
-            <div class="text-center py-10 text-slate-400">Загрузка заданий на сегодня...</div>
-        </div>
-
-        <!-- Форма добавления -->
-        <div class="mt-12 p-6 bg-indigo-900 text-white rounded-2xl shadow-xl">
-            <h2 class="text-xl font-bold mb-4">Пополнить базу слов</h2>
+        <!-- Форма добавления новых слов -->
+        <div class="mt-12 p-8 bg-indigo-900 text-white rounded-3xl shadow-2xl">
+            <h2 class="text-2xl font-bold mb-6 flex items-center gap-2">
+                <span>➕</span> Добавить новое слово или фразу
+            </h2>
             <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
-                <input type="text" id="new-ru" placeholder="RU (напр: Книга)" class="p-2 rounded bg-indigo-800 border border-indigo-700 outline-none focus:border-white placeholder-indigo-300">
-                <input type="text" id="new-tr" placeholder="TR (напр: Kitap)" class="p-2 rounded bg-indigo-800 border border-indigo-700 outline-none focus:border-white placeholder-indigo-300">
-                <select id="new-type" class="p-2 rounded bg-indigo-800 border border-indigo-700 outline-none focus:border-white text-white">
+                <input type="text" id="new-ru" placeholder="Русский (напр. Книга)" class="p-3 rounded-xl bg-indigo-800 border border-indigo-700 outline-none focus:ring-2 focus:ring-white/20 transition-all">
+                <input type="text" id="new-tr" placeholder="Турецкий (напр. Kitap)" class="p-3 rounded-xl bg-indigo-800 border border-indigo-700 outline-none focus:ring-2 focus:ring-white/20 transition-all">
+                <select id="new-type" class="p-3 rounded-xl bg-indigo-800 border border-indigo-700 text-white outline-none">
                     <option value="слово">Слово</option>
                     <option value="фраза">Фраза</option>
                 </select>
-                <button id="add-btn" onclick="addNewWord()" class="bg-white text-indigo-900 font-bold py-2 px-4 rounded hover:bg-indigo-100 transition-all active:scale-95">
-                    Добавить
-                </button>
+                <button onclick="addNewWord()" class="bg-white text-indigo-900 font-bold py-3 rounded-xl hover:bg-indigo-50 transition-colors shadow-lg">Добавить</button>
             </div>
         </div>
     </div>
 
     <script>
-        // ВАЖНО: Замените на ваш адрес с Render для работы в сети
+        // АДРЕС ВАШЕГО СЕРВЕРА НА RENDER
         const API_URL = 'https://turkish-learning-app-swnz.onrender.com';
 
+        // Загрузка заданий при старте
         async function fetchDailyTasks() {
-            const statusBadge = document.getElementById('status-badge');
             try {
                 const response = await fetch(`${API_URL}/get-daily-tasks`);
-                if (!response.ok) throw new Error('Ошибка сети');
+                if (!response.ok) throw new Error();
                 const data = await response.json();
-                
-                statusBadge.innerText = '● Сервер онлайн';
-                statusBadge.className = 'mt-4 inline-block px-3 py-1 rounded-full text-xs font-medium bg-emerald-100 text-emerald-700';
-                
                 renderApp(data);
-            } catch (error) {
-                console.error('Ошибка загрузки:', error);
-                statusBadge.innerText = '○ Сервер оффлайн';
-                statusBadge.className = 'mt-4 inline-block px-3 py-1 rounded-full text-xs font-medium bg-rose-100 text-rose-700';
-                
-                document.getElementById('learning-app').innerHTML = 
-                    `<div class="text-center py-10 text-rose-500 font-bold p-4 bg-white rounded-xl shadow-sm border border-rose-100">
-                        Не удалось подключиться к серверу API.<br>
-                        <span class="text-sm font-normal text-slate-500">Убедитесь, что бэкенд запущен и CORS разрешен.</span>
-                    </div>`;
+                document.getElementById('status-badge').innerText = '● Онлайн';
+                document.getElementById('status-badge').className = 'px-3 py-1 rounded-full text-xs inline-block bg-green-100 text-green-700';
+            } catch (e) {
+                document.getElementById('status-badge').innerText = '○ Оффлайн (проверьте сервер)';
+                document.getElementById('status-badge').className = 'px-3 py-1 rounded-full text-xs inline-block bg-red-100 text-red-700';
             }
         }
 
+        // Отрисовка карточек
         function renderApp(data) {
             const app = document.getElementById('learning-app');
             app.innerHTML = '';
             
-            const wordsCount = data.filter(i => i.type === 'слово').length;
-            const phrasesCount = data.filter(i => i.type === 'фраза').length;
-            
-            document.getElementById('words-count').innerText = wordsCount;
-            document.getElementById('phrases-count').innerText = phrasesCount;
-
-            if (data.length === 0) {
-                app.innerHTML = '<div class="text-center py-10 text-slate-400">База данных пуста. Добавьте новые выражения ниже.</div>';
-                return;
-            }
-
-            data.forEach((item, index) => {
+            data.forEach(item => {
                 const card = document.createElement('div');
-                card.className = "bg-white p-6 rounded-2xl shadow-md border-l-4 border-indigo-500 card fade-in";
-                card.style.animationDelay = `${index * 0.1}s`;
+                card.className = "bg-white p-6 rounded-2xl shadow-md border-l-4 border-indigo-500 card";
                 card.innerHTML = `
                     <div class="flex justify-between items-start mb-4">
-                        <span class="px-2 py-1 bg-indigo-100 text-indigo-700 text-xs font-bold rounded uppercase">${item.type}</span>
-                        <div class="flex gap-2">
-                            <button onclick="speak('${item.tr}')" class="text-slate-400 hover:text-indigo-500 text-xl" title="Прослушать">🔊</button>
-                            <button onclick="toggleHint(this)" class="text-slate-400 hover:text-indigo-500 text-xl" title="Подсказка">💡</button>
+                        <span class="px-2 py-1 bg-indigo-50 text-indigo-600 text-[10px] font-black rounded uppercase tracking-wider">${item.type}</span>
+                        <div class="flex items-center gap-1">
+                            <!-- Кнопка удаления с крестиком -->
+                            <button onclick="deleteItem(${item.id})" class="delete-btn text-slate-300 hover:text-red-500 p-1 transition-colors" title="Удалить слово">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                            </button>
+                            <button onclick="speak('${item.tr}')" class="p-1 hover:bg-slate-100 rounded-full transition-colors text-lg" title="Прослушать">🔊</button>
                         </div>
                     </div>
-                    <h3 class="text-xl font-semibold mb-4">${item.ru}</h3>
-                    <div class="relative">
-                        <input type="text" onkeypress="handleEnter(event, this, '${item.tr}')" placeholder="Перевод на турецкий..." 
-                            class="w-full p-3 bg-slate-50 border-2 border-slate-100 rounded-lg outline-none focus:border-indigo-300 transition-all">
-                        <button onclick="check(this, '${item.tr}')" class="absolute right-2 top-2 px-3 py-1 bg-indigo-600 text-white rounded-md font-bold hover:bg-indigo-700 transition-colors">OK</button>
+                    <h3 class="text-xl font-bold text-slate-800 mb-4">${item.ru}</h3>
+                    <div class="space-y-2">
+                        <input type="text" 
+                            onkeypress="handleEnter(event, this, '${item.tr}')" 
+                            placeholder="Введите перевод..." 
+                            class="w-full p-3 bg-slate-50 border-2 border-slate-100 rounded-xl outline-none focus:border-indigo-400 transition-all">
+                        <p class="text-[10px] text-slate-400 italic ml-1">${item.hint || ''}</p>
                     </div>
-                    <div class="mt-3 hidden hint-text text-sm italic text-indigo-600 font-medium">${item.hint}</div>
                 `;
                 app.appendChild(card);
             });
         }
 
-        // Озвучка турецкого языка
+        // Логика удаления с проверкой пароля (Admin Token)
+        async function deleteItem(id) {
+            const password = prompt("Введите секретный ключ администратора для удаления этого слова:");
+            if (!password) return; // Если нажали "Отмена"
+
+            try {
+                const response = await fetch(`${API_URL}/delete-item`, {
+                    method: 'POST',
+                    headers: { 
+                        'Content-Type': 'application/json',
+                        'X-Admin-Token': password 
+                    },
+                    body: JSON.stringify({ id })
+                });
+
+                if (response.ok) {
+                    // Если сервер вернул успех
+                    fetchDailyTasks(); // Перезагружаем список
+                } else {
+                    const errorData = await response.json();
+                    alert("Ошибка: " + (errorData.detail || "Доступ запрещен"));
+                }
+            } catch (e) {
+                alert("Не удалось связаться с сервером");
+            }
+        }
+
+        // Проверка ввода по нажатию Enter
+        function handleEnter(event, input, correctTranslation) {
+            if (event.key === 'Enter') {
+                const userValue = input.value.trim().toLowerCase();
+                const correctValue = correctTranslation.toLowerCase();
+                
+                if (userValue === correctValue) {
+                    input.parentElement.parentElement.classList.add('correct');
+                    input.parentElement.parentElement.classList.remove('wrong');
+                    speak(correctTranslation);
+                } else {
+                    input.parentElement.parentElement.classList.add('wrong');
+                    input.parentElement.parentElement.classList.remove('correct');
+                }
+            }
+        }
+
+        // Озвучка текста
         function speak(text) {
             const utterance = new SpeechSynthesisUtterance(text);
             utterance.lang = 'tr-TR';
             window.speechSynthesis.speak(utterance);
         }
 
-        function check(btn, correct) {
-            const input = btn.parentElement.querySelector('input');
-            const card = btn.closest('.card');
-            const userVal = input.value.trim().toLowerCase();
-            const correctVal = correct.toLowerCase().replace(/[.!?]$/, ""); // Убираем точки в конце для сравнения
-
-            if (userVal === correctVal) {
-                card.classList.add('correct');
-                card.classList.remove('wrong');
-            } else {
-                card.classList.add('wrong');
-                card.classList.remove('correct');
-            }
-        }
-
-        function handleEnter(e, input, correct) {
-            if (e.key === 'Enter') check(input.nextElementSibling, correct);
-        }
-
-        function toggleHint(btn) {
-            const hint = btn.closest('.card').querySelector('.hint-text');
-            hint.classList.toggle('hidden');
-        }
-
+        // Добавление нового слова
         async function addNewWord() {
-            const ruInput = document.getElementById('new-ru');
-            const trInput = document.getElementById('new-tr');
-            const typeInput = document.getElementById('new-type');
-            const addBtn = document.getElementById('add-btn');
-
-            const ru = ruInput.value.trim();
-            const tr = trInput.value.trim();
-            const type = typeInput.value;
-
-            if(!ru || !tr) {
-                alert("Заполните оба поля!");
-                return;
-            }
+            const ru = document.getElementById('new-ru').value;
+            const tr = document.getElementById('new-tr').value;
+            const type = document.getElementById('new-type').value;
             
-            addBtn.disabled = true;
-            addBtn.innerText = '...';
+            if(!ru || !tr) return alert("Заполните оба поля!");
 
             try {
                 const response = await fetch(`${API_URL}/add-to-db`, {
@@ -182,17 +168,14 @@
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ ru, tr, type })
                 });
-
-                if (response.ok) {
-                    ruInput.value = '';
-                    trInput.value = '';
+                
+                if(response.ok) {
+                    document.getElementById('new-ru').value = '';
+                    document.getElementById('new-tr').value = '';
                     fetchDailyTasks();
                 }
-            } catch (error) {
-                alert("Ошибка сохранения. Проверьте соединение с бэкендом.");
-            } finally {
-                addBtn.disabled = false;
-                addBtn.innerText = 'Добавить';
+            } catch (e) {
+                alert("Ошибка при добавлении");
             }
         }
 
