@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Изучение Турецкого Языка</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .card { transition: transform 0.2s; }
+        .card:hover { transform: translateY(-5px); }
+        .correct { border-color: #10b981 !important; background-color: #f0fdf4 !important; }
+        .wrong { border-color: #f43f5e !important; background-color: #fff1f2 !important; }
+    </style>
+</head>
+<body class="bg-slate-50 min-h-screen font-sans text-slate-900">
+
+    <div class="max-w-4xl mx-auto p-6">
+        <header class="text-center mb-10">
+            <h1 class="text-4xl font-bold text-indigo-600 mb-2">Günlük Türkçe</h1>
+            <p class="text-slate-500">Ваша ежедневная порция турецких слов и фраз</p>
+        </header>
+
+        <!-- Статистика дня -->
+        <div class="grid grid-cols-2 gap-4 mb-8">
+            <div class="bg-white p-4 rounded-xl shadow-sm border border-slate-200">
+                <p class="text-sm text-slate-500">Слов на сегодня</p>
+                <p id="words-count" class="text-2xl font-bold text-indigo-500">0</p>
+            </div>
+            <div class="bg-white p-4 rounded-xl shadow-sm border border-slate-200">
+                <p class="text-sm text-slate-500">Фраз на сегодня</p>
+                <p id="phrases-count" class="text-2xl font-bold text-emerald-500">0</p>
+            </div>
+        </div>
+
+        <!-- Контейнер для заданий -->
+        <div id="learning-app" class="space-y-6">
+            <div class="text-center py-10 text-slate-400">Загрузка заданий на сегодня...</div>
+        </div>
+
+        <!-- Форма добавления -->
+        <div class="mt-12 p-6 bg-indigo-900 text-white rounded-2xl">
+            <h2 class="text-xl font-bold mb-4">Пополнить базу слов</h2>
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+                <input type="text" id="new-ru" placeholder="RU (напр: Книга)" class="p-2 rounded bg-indigo-800 border border-indigo-700 outline-none focus:border-white">
+                <input type="text" id="new-tr" placeholder="TR (напр: Kitap)" class="p-2 rounded bg-indigo-800 border border-indigo-700 outline-none focus:border-white">
+                <select id="new-type" class="p-2 rounded bg-indigo-800 border border-indigo-700 outline-none focus:border-white text-slate-300">
+                    <option value="слово">Слово</option>
+                    <option value="фраза">Фраза</option>
+                </select>
+                <button onclick="addNewWord()" class="bg-white text-indigo-900 font-bold py-2 px-4 rounded hover:bg-indigo-100 transition-colors">
+                    Добавить
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API_URL = 'http://127.0.0.1:8000';
+
+        // Загрузка данных с Python сервера
+        async function fetchDailyTasks() {
+            try {
+                const response = await fetch(`${API_URL}/get-daily-tasks`);
+                if (!response.ok) throw new Error('Ошибка сети');
+                const data = await response.json();
+                renderApp(data);
+            } catch (error) {
+                console.error('Ошибка загрузки:', error);
+                document.getElementById('learning-app').innerHTML = 
+                    `<div class="text-center py-10 text-rose-500 font-bold">Не удалось подключиться к серверу Python. Убедитесь, что app.py запущен.</div>`;
+            }
+        }
+
+        function renderApp(data) {
+            const app = document.getElementById('learning-app');
+            app.innerHTML = '';
+            
+            const wordsCount = data.filter(i => i.type === 'слово').length;
+            const phrasesCount = data.filter(i => i.type === 'фраза').length;
+            
+            document.getElementById('words-count').innerText = wordsCount;
+            document.getElementById('phrases-count').innerText = phrasesCount;
+
+            if (data.length === 0) {
+                app.innerHTML = '<div class="text-center py-10 text-slate-400">База данных пуста. Добавьте слова ниже.</div>';
+                return;
+            }
+
+            data.forEach(item => {
+                const card = document.createElement('div');
+                card.className = "bg-white p-6 rounded-2xl shadow-md border-l-4 border-indigo-500 card";
+                card.innerHTML = `
+                    <div class="flex justify-between items-start mb-4">
+                        <span class="px-2 py-1 bg-indigo-100 text-indigo-700 text-xs font-bold rounded uppercase">${item.type}</span>
+                        <button onclick="toggleHint(this)" class="text-slate-400 hover:text-indigo-500 text-xl" title="Показать подсказку">
+                            💡
+                        </button>
+                    </div>
+                    <h3 class="text-xl font-semibold mb-4">${item.ru}</h3>
+                    <div class="relative">
+                        <input type="text" onkeypress="handleEnter(event, this, '${item.tr}')" placeholder="Перевод..." 
+                            class="w-full p-3 bg-slate-100 border-2 border-transparent rounded-lg outline-none transition-all">
+                        <button onclick="check(this, '${item.tr}')" class="absolute right-2 top-2 px-3 py-1 bg-indigo-600 text-white rounded-md font-bold hover:bg-indigo-700 transition-colors">OK</button>
+                    </div>
+                    <div class="mt-3 hidden hint-text text-sm italic text-indigo-600 font-medium">${item.hint}</div>
+                `;
+                app.appendChild(card);
+            });
+        }
+
+        function check(btn, correct) {
+            const input = btn.parentElement.querySelector('input');
+            const card = btn.closest('.card');
+            if (input.value.trim().toLowerCase() === correct.toLowerCase()) {
+                card.classList.add('correct');
+                card.classList.remove('wrong');
+            } else {
+                card.classList.add('wrong');
+                card.classList.remove('correct');
+            }
+        }
+
+        function handleEnter(e, input, correct) {
+            if (e.key === 'Enter') check(input.nextElementSibling, correct);
+        }
+
+        function toggleHint(btn) {
+            const hint = btn.closest('.card').querySelector('.hint-text');
+            hint.classList.toggle('hidden');
+        }
+
+        async function addNewWord() {
+            const ru = document.getElementById('new-ru').value;
+            const tr = document.getElementById('new-tr').value;
+            const type = document.getElementById('new-type').value;
+
+            if(!ru || !tr) {
+                alert("Заполните оба поля!");
+                return;
+            }
+            
+            try {
+                const response = await fetch(`${API_URL}/add-to-db`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ ru, tr, type })
+                });
+
+                if (response.ok) {
+                    alert(`Успешно добавлено: ${ru}`);
+                    document.getElementById('new-ru').value = '';
+                    document.getElementById('new-tr').value = '';
+                    // Перезагружаем список, чтобы увидеть изменения
+                    fetchDailyTasks();
+                }
+            } catch (error) {
+                alert("Ошибка при сохранении в базу Python.");
+            }
+        }
+
+        // Запуск загрузки при старте
+        window.onload = fetchDailyTasks;
+    </script>
+</body>
+</html>
